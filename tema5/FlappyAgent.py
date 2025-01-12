@@ -18,7 +18,7 @@ from dqn import DQN
 class Agent:
 
     def __init__(self):
-        self.replay_memory_size = 100000
+        self.replay_memory_size = 10000
         self.minibatch_size = 32
         self.epsilon_init = 1.0
         self.epsilon_decay = 0.9995
@@ -27,13 +27,13 @@ class Agent:
         self.device = 'cuda' if torch.cuda.is_available() else 'cpu'
         self.learning_rate = 0.005
         self.discount_factor_g = 0.99
-        self.best_reward_stop = 10000
+        self.best_reward_stop = 1000
 
         self.loss_fn = torch.nn.MSELoss()
         self.optimizer = None
 
         self.MODEL_FILE = os.path.join(os.path.dirname(__file__), "flappy_model.pth")
-        # self.GRAPH_FILE = os.path.join(os.path.dirname(__file__), 'flappy_model_test7.png')
+        self.GRAPH_FILE = os.path.join(os.path.dirname(__file__), 'flappy_model.png')
 
 
     def run(self, training=False, render=True):
@@ -49,10 +49,10 @@ class Agent:
         policy_dqn = DQN(num_states, num_actions).to(self.device)
 
         if training:
+            print("Device: ", self.device)
             start_time = datetime.now()
             last_graph_update_time = start_time
 
-            print("Device: ", self.device)
             memory = ReplayMemory(maxlen=self.replay_memory_size)
             epsilon = self.epsilon_init
 
@@ -60,7 +60,7 @@ class Agent:
             target_dqn = DQN(num_states, num_actions).to(self.device)
             target_dqn.load_state_dict(policy_dqn.state_dict())
 
-            # self.optimizer = torch.optim.Adam(policy_dqn.parameters(), lr=self.learning_rate) # TODO: policy_dqn.parameters() + ADAM + RMSprop
+            # self.optimizer = torch.optim.Adam(policy_dqn.parameters(), lr=self.learning_rate)
             self.optimizer = torch.optim.RMSprop(policy_dqn.parameters(), lr=self.learning_rate)
 
             best_reward = -np.inf
@@ -68,7 +68,7 @@ class Agent:
             policy_dqn.load_state_dict(torch.load(self.MODEL_FILE))
             policy_dqn.eval()
 
-        for episode in tqdm(itertools.count(), desc="Training Episodes", unit="episode"):
+        for episode in tqdm(itertools.count(), desc="Episodes", unit="episode"):
             state, _ = env.reset()
             state = torch.tensor(state, dtype=torch.float32, device=self.device)
 
@@ -105,7 +105,7 @@ class Agent:
                 epsilon_history.append(epsilon)
 
                 current_time = datetime.now()
-                if current_time - last_graph_update_time > timedelta(seconds=1):
+                if current_time - last_graph_update_time > timedelta(seconds=5):
                     self.save_graph(rewards_per_episode, epsilon_history)
                     last_graph_update_time = current_time
 
@@ -122,13 +122,13 @@ class Agent:
                     print(f"Best reward reached: {episode_reward}")
                     break
             else:
-                if info.get('score') > 10:
+                if info.get('score') > 100:
                     print(f"Score: {info.get('score')} Reward: {episode_reward}")
                 # break
 
             rewards_per_episode.append(episode_reward)
 
-    def optimize(self, mini_batch, policy_dqn, target_dqn): # TODO: optimize
+    def optimize(self, mini_batch, policy_dqn, target_dqn):
 
         states, actions, rewards, next_states, dones = zip(*mini_batch)
 
@@ -176,12 +176,19 @@ class Agent:
         fig.savefig(self.GRAPH_FILE)
         plt.close(fig)
 
+    def play(self):
+        self.run(training=False, render=True)
+
+    def train(self):
+        self.run(training=True, render=False)
+
+    def test(self):
+        self.run(training=False, render=False)
+
 
 if __name__ == '__main__':
-    # env = gym.spaces
-
-
     game = Agent()
-    # game.run(training=True, render=False)
-    game.run(training=False, render=False)
-    # game.run()
+
+    # game.train()
+    # game.play()
+    # game.test()
